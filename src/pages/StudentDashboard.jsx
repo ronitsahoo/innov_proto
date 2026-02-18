@@ -50,7 +50,7 @@ export default function StudentDashboard() {
             <motion.div variants={item} className="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-6 backdrop-blur-sm bg-white/70 dark:bg-black/20 p-6 rounded-3xl border border-gray-200 dark:border-white/5 shadow-md dark:shadow-none">
                 <div>
                     <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
-                        Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-neon-blue dark:to-neon-purple">{user?.name}</span> 👋
+                        Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-neon-blue dark:to-neon-purple">{user?.name} !</span>
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">Your academic journey starts here. Complete these tasks to proceed.</p>
                 </div>

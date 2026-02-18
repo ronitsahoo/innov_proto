@@ -7,7 +7,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [theme, setTheme] = useState('dark');
+    const [theme, setTheme] = useState('light');
 
     useEffect(() => {
         const storedUser = localStorage.getItem('currentUser');
@@ -23,7 +23,8 @@ export const AuthProvider = ({ children }) => {
         if (storedTheme) {
             setTheme(storedTheme);
         } else {
-            localStorage.setItem('theme', 'dark');
+            localStorage.setItem('theme', 'light');
+            setTheme('light');
         }
     }, []);
 
