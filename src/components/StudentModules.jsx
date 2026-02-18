@@ -76,7 +76,7 @@ export function DocumentUpload({ fullPage = false }) {
                     </p>
                 )}
 
-                <div className={`space-y-4 overflow-y-auto ${fullPage ? 'max-h-[60vh]' : 'max-h-[200px]'} custom-scrollbar pr-2 flex-1`}>
+                <div className={`space-y-4 overflow-y-auto ${fullPage ? 'max-h-[60vh]' : 'max-h-[400px]'} custom-scrollbar pr-2 flex-1`}>
                     {Object.keys(files).map((docName) => {
                         const doc = files[docName];
                         return (
@@ -209,7 +209,7 @@ export function FeePayment({ fullPage = false }) {
 
                 <div className="flex-1">
                     <h4 className="text-sm font-semibold text-gray-500 uppercase mb-4 flex items-center gap-2"><Clock size={16} /> Payment History</h4>
-                    <div className={`space-y-3 overflow-y-auto ${fullPage ? 'max-h-[300px]' : 'max-h-[100px]'} custom-scrollbar pr-2`}>
+                    <div className={`space-y-3 overflow-y-auto ${fullPage ? 'max-h-[300px]' : 'max-h-[200px]'} custom-scrollbar pr-2`}>
                         {feeData.history && feeData.history.length > 0 ? (
                             feeData.history.map((tx, idx) => (
                                 <div key={idx} className={`flex justify-between items-center ${fullPage ? 'p-4' : 'p-2'} bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/5`}>
@@ -376,7 +376,7 @@ export function LMSActivation({ fullPage = false }) {
                         </div>
 
                         {activeTab === 'courses' ? (
-                            <div className={`space-y-4 overflow-y-auto ${fullPage ? 'max-h-[60vh]' : 'max-h-[220px]'} custom-scrollbar pr-2 h-full`}>
+                            <div className={`space-y-4 overflow-y-auto ${fullPage ? 'max-h-[60vh]' : 'max-h-[400px]'} custom-scrollbar pr-2 h-full`}>
                                 {courses.map(c => {
                                     const isReg = lmsData.registeredCourses?.includes(c.code);
                                     return (

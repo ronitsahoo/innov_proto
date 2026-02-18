@@ -134,20 +134,44 @@ export const DataProvider = ({ children }) => {
         setStudentData(currentData);
     };
 
-    const updateStudentStatus = (studentId, moduleName, status, reason = null) => {
+    const updateStudentStatus = (studentId, moduleName, status, reason = null, fileKey = null) => {
         const allData = JSON.parse(localStorage.getItem('studentsData') || '{}');
         const student = allData[studentId];
 
         if (student) {
-            // General status update logic
+            // Document Verification Logic
             if (moduleName === 'documents') {
-                student.documents.status = status;
-                student.documents.reason = reason;
-                // Also approve all individual files if approved
-                if (status === 'approved') {
-                    Object.keys(student.documents.files).forEach(key => {
-                        student.documents.files[key].status = 'approved';
-                    });
+                if (fileKey) {
+                    // Update specific file status
+                    if (student.documents?.files?.[fileKey]) {
+                        student.documents.files[fileKey].status = status;
+                        if (status === 'rejected') {
+                            // If rejected, remove the file so they can re-upload
+                            student.documents.files[fileKey].file = null;
+                        }
+                    }
+
+                    // Check if ALL files are approved to update main status
+                    const allFiles = Object.values(student.documents.files);
+                    const allApproved = allFiles.every(f => f.status === 'approved');
+
+                    if (allApproved) {
+                        student.documents.status = 'approved';
+                    } else if (status === 'rejected') {
+                        // If one is rejected, main status is pending or rejected? 
+                        // Let's keep main status as pending as long as not all approved
+                        // Or maybe 'rejected' if critical? Let's keep 'pending' so staff can see updates.
+                        student.documents.status = 'pending';
+                    }
+                } else {
+                    // Fallback to bulk update if no fileKey provided (legacy support)
+                    student.documents.status = status;
+                    student.documents.reason = reason;
+                    if (status === 'approved') {
+                        Object.keys(student.documents.files).forEach(key => {
+                            student.documents.files[key].status = 'approved';
+                        });
+                    }
                 }
             } else {
                 student[moduleName] = { ...student[moduleName], status, reason };
@@ -155,13 +179,30 @@ export const DataProvider = ({ children }) => {
 
             // Add notification to student
             const notifications = student.notifications || [];
+            let msg = `Your ${moduleName} status has been updated to ${status}.`;
+            if (fileKey) msg = `Your document "${fileKey}" has been ${status}.`;
+            if (reason) msg += ` Reason: ${reason}`;
+
             notifications.unshift({
                 id: Date.now(),
-                message: `Your ${moduleName} status has been updated to ${status}. ${reason ? `Reason: ${reason}` : ''}`,
+                message: msg,
                 read: false,
                 date: new Date().toISOString()
             });
             student.notifications = notifications;
+
+            // Log Verification History (New)
+            if (moduleName === 'documents') {
+                student.verificationHistory = student.verificationHistory || [];
+                student.verificationHistory.unshift({
+                    id: Date.now(),
+                    file: fileKey || 'All Documents',
+                    status: status,
+                    reason: reason,
+                    date: new Date().toISOString(),
+                    admin: 'Staff' // Could pass staff name
+                });
+            }
 
             localStorage.setItem('studentsData', JSON.stringify(allData));
             loadAllStudents();

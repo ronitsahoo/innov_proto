@@ -76,7 +76,7 @@ export default function ChatBot() {
             {/* Chat Window */}
             <div
                 className={`w-[350px] sm:w-[400px] h-[500px] bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right pointer-events-auto
-                ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-10 pointer-events-none'}`}
+                ${isOpen ? 'opacity-100 scale-100 translate-y-0 visible' : 'opacity-0 scale-90 translate-y-10 invisible pointer-events-none'}`}
             >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-neon-blue/20 dark:to-neon-purple/20 p-4 flex items-center justify-between">
