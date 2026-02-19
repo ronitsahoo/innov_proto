@@ -60,30 +60,33 @@ export default function ChatBot() {
     };
 
     const handleFileSelect = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length === 0) return;
 
-        // Validate file type
+        // Validate all file types
         const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-        if (!validTypes.includes(file.type)) {
-            alert("Only PDF, JPG, and PNG files are allowed.");
+        const invalidFiles = selectedFiles.filter(f => !validTypes.includes(f.type));
+        if (invalidFiles.length > 0) {
+            alert(`These files are not supported: ${invalidFiles.map(f => f.name).join(', ')}. Only PDF, JPG, and PNG are allowed.`);
             return;
         }
 
         setIsProcessing(true);
 
-        // Upload
+        // Build FormData with all files
         const formData = new FormData();
-        formData.append('file', file);
+        selectedFiles.forEach(file => {
+            formData.append('files', file);
+        });
 
         try {
-            // Optimistic user message with attachment
+            // Optimistic user message
             const tempId = Date.now();
+            const fileNames = selectedFiles.map(f => f.name).join(', ');
             setMessages(prev => [...prev, {
                 _id: tempId,
                 sender: 'student',
-                message: file.name,
-                attachment: URL.createObjectURL(file) // temporary preview
+                message: `📎 Uploaded ${selectedFiles.length} document(s): ${fileNames}`
             }]);
 
             const { data } = await api.post('/chat/upload', formData, {
@@ -93,17 +96,15 @@ export default function ChatBot() {
             await fetchChatHistory();
 
             if (data.mapped) {
-                // If document was mapped, update dashboard data
                 await fetchStudentData();
             }
 
         } catch (error) {
             console.error("Upload failed", error);
-            // Append error message from bot
             setMessages(prev => [...prev, {
                 _id: Date.now(),
                 sender: 'aria',
-                message: "Sorry, I encountered an error uploading your document. Please try again."
+                message: "Sorry, I encountered an error uploading your documents. Please try again."
             }]);
         } finally {
             setIsProcessing(false);
@@ -147,8 +148,8 @@ export default function ChatBot() {
                     {messages.map((msg) => (
                         <div key={msg._id || msg.id} className={`flex ${msg.sender === 'student' || msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] rounded-2xl p-3 text-sm shadow-sm ${msg.sender === 'student' || msg.sender === 'user'
-                                    ? 'bg-blue-600 dark:bg-neon-blue text-white font-medium rounded-tr-none'
-                                    : 'bg-white dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-white/5 rounded-tl-none'
+                                ? 'bg-blue-600 dark:bg-neon-blue text-white font-medium rounded-tr-none'
+                                : 'bg-white dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-white/5 rounded-tl-none'
                                 }`}>
 
                                 {msg.attachment && (
@@ -177,7 +178,7 @@ export default function ChatBot() {
                         <div className="flex justify-start">
                             <div className="bg-white dark:bg-white/10 p-3 rounded-2xl rounded-tl-none border border-gray-200 dark:border-white/5 flex items-center gap-2">
                                 <Loader className="animate-spin text-blue-600 dark:text-neon-blue" size={16} />
-                                <span className="text-sm text-gray-500 dark:text-gray-400">Analyzing document...</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">Analyzing documents...</span>
                             </div>
                         </div>
                     )}
@@ -192,12 +193,13 @@ export default function ChatBot() {
                             ref={fileInputRef}
                             className="hidden"
                             accept=".pdf,.jpg,.jpeg,.png"
+                            multiple
                             onChange={handleFileSelect}
                         />
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="p-2.5 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
-                            title="Attach Document"
+                            title="Attach Documents"
                             disabled={isProcessing}
                         >
                             <Paperclip size={20} />

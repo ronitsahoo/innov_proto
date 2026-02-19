@@ -12,44 +12,44 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // @route   POST /api/chat/upload
 // @access  Private (Student)
 const uploadChatDocument = asyncHandler(async (req, res) => {
-    if (!req.file) {
+    if (!req.files || req.files.length === 0) {
         res.status(400);
-        throw new Error('No file uploaded');
+        throw new Error('No files uploaded');
     }
 
     const userId = req.user._id;
-    const filePath = `/uploads/${req.file.filename}`;
-    const absolutePath = path.join(__dirname, '..', filePath);
+    const results = [];
+    let anyMapped = false;
 
-    // 1. Save User Message
+    // Save a single user message listing all uploaded files
+    const fileNames = req.files.map(f => f.originalname).join(', ');
     await ChatMessage.create({
         userId,
         sender: 'student',
-        message: req.file.originalname,
-        attachment: filePath
+        message: `Uploaded ${req.files.length} document(s): ${fileNames}`,
+        attachment: `/uploads/${req.files[0].filename}` // show first file as attachment
     });
 
-    try {
-        // 2. Read file for Gemini
-        const fileData = fs.readFileSync(absolutePath);
-        const imagePart = {
-            inlineData: {
-                data: fileData.toString('base64'),
-                mimeType: req.file.mimetype,
-            },
-        };
+    const profile = await StudentProfile.findOne({ userId });
 
-        // 3. Call Gemini Vision with Fallback
-        const modelsToTry = ["gemini-3-flash-preview"];
-        let text = null;
-        let lastError = null;
+    for (const file of req.files) {
+        const filePath = `/uploads/${file.filename}`;
+        const absolutePath = path.join(__dirname, '..', filePath);
 
-        for (const modelName of modelsToTry) {
-            try {
-                console.log(`Trying Gemini model: ${modelName}`);
-                const model = genAI.getGenerativeModel({ model: modelName });
+        try {
+            // Read file for Gemini
+            const fileData = fs.readFileSync(absolutePath);
+            const imagePart = {
+                inlineData: {
+                    data: fileData.toString('base64'),
+                    mimeType: file.mimetype,
+                },
+            };
 
-                const prompt = `You are an AI Academic Document Classification System.
+            // Call Gemini Vision
+            const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+            const prompt = `You are an AI Academic Document Classification System.
 
 Analyze the uploaded document and determine its document type.
 
@@ -78,103 +78,97 @@ Return strictly valid JSON:
   "confidence": number (0-100)
 }`;
 
-                const result = await model.generateContent([prompt, imagePart]);
-                const response = await result.response;
-                text = response.text();
+            const result = await model.generateContent([prompt, imagePart]);
+            const response = await result.response;
+            const text = response.text();
 
-                if (text) break; // Success
-            } catch (error) {
-                console.warn(`Model ${modelName} failed:`, error.message);
-                lastError = error;
-                // Continue to next model
+            let classification;
+            try {
+                const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                classification = JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Gemini JSON Parse Error:", text);
+                classification = { document_type: "Other", confidence: 0 };
             }
-        }
 
-        if (!text) {
-            throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
-        }
+            const { document_type, confidence } = classification;
+            let status = 'failed';
 
-        // Process the text result
-        let classification;
-        try {
-            // Clean markdown code blocks if present
-            const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            classification = JSON.parse(jsonString);
-        } catch (e) {
-            console.error("Gemini JSON Parse Error:", text);
-            classification = { document_type: "Other", confidence: 0 };
-        }
-
-        const { document_type, confidence } = classification;
-        let botMessage = "";
-        let mapped = false;
-
-        // 4. Logic based on confidence
-        if (confidence >= 70 && document_type !== 'Other') {
-            const profile = await StudentProfile.findOne({ userId });
-
-            if (profile) {
-                // Check if doc exists
+            // Map to profile if confidence is high
+            if (confidence >= 70 && document_type !== 'Other' && profile) {
                 const existingIndex = profile.documents.findIndex(
                     d => d.type === document_type && ['pending', 'uploaded'].includes(d.status)
                 );
 
                 if (existingIndex !== -1) {
-                    // Update existing
-                    // Delete old file from disk
+                    // Delete old file
                     const oldFilePath = path.join(__dirname, '..', profile.documents[existingIndex].fileUrl);
                     if (fs.existsSync(oldFilePath)) {
                         try { fs.unlinkSync(oldFilePath); } catch (e) { }
                     }
                     profile.documents[existingIndex].fileUrl = filePath;
-                    profile.documents[existingIndex].originalName = req.file.originalname;
+                    profile.documents[existingIndex].originalName = file.originalname;
                     profile.documents[existingIndex].status = 'uploaded';
                 } else {
-                    // Add new
                     profile.documents.push({
                         type: document_type,
                         fileUrl: filePath,
-                        originalName: req.file.originalname,
+                        originalName: file.originalname,
                         status: 'uploaded'
                     });
                 }
-                await profile.save();
-                mapped = true;
-                botMessage = `📄 Document detected as **${document_type}** (${confidence}% confidence). Uploaded successfully.`;
-            } else {
-                botMessage = "⚠️ Profile not found. Cannot link document.";
+                status = 'mapped';
+                anyMapped = true;
             }
-        } else {
-            botMessage = `⚠️ We are not confident about this document (Detected: ${document_type}, Confidence: ${confidence}%). Please upload again or confirm document type manually in the Documents module.`;
+
+            results.push({
+                fileName: file.originalname,
+                document_type,
+                confidence,
+                status,
+                fileUrl: filePath
+            });
+
+        } catch (error) {
+            console.error(`Gemini Error for ${file.originalname}:`, error.message);
+            results.push({
+                fileName: file.originalname,
+                document_type: 'Error',
+                confidence: 0,
+                status: 'error',
+                error: error.message
+            });
         }
-
-        // 5. Save Bot Response
-        await ChatMessage.create({
-            userId,
-            sender: 'aria',
-            message: botMessage
-        });
-
-        res.json({
-            message: botMessage,
-            classification,
-            fileUrl: filePath,
-            mapped
-        });
-
-    } catch (error) {
-        console.error("Gemini Error:", error);
-
-        // Error Response
-        const errorMsg = "Sorry, I encountered an error processing your document.";
-        await ChatMessage.create({
-            userId,
-            sender: 'aria',
-            message: errorMsg
-        });
-
-        res.status(500).json({ message: errorMsg, error: error.message });
     }
+
+    // Save profile once after all documents are processed
+    if (profile && anyMapped) {
+        await profile.save();
+    }
+
+    // Build summary bot message
+    let botMessage = `📋 **Classification Results (${results.length} document${results.length > 1 ? 's' : ''}):**\n\n`;
+    results.forEach((r, i) => {
+        if (r.status === 'mapped') {
+            botMessage += `✅ **${r.fileName}** → ${r.document_type} (${r.confidence}% confidence) — Uploaded!\n`;
+        } else if (r.status === 'error') {
+            botMessage += `❌ **${r.fileName}** → Error processing this file.\n`;
+        } else {
+            botMessage += `⚠️ **${r.fileName}** → ${r.document_type} (${r.confidence}%) — Low confidence, please upload manually.\n`;
+        }
+    });
+
+    await ChatMessage.create({
+        userId,
+        sender: 'aria',
+        message: botMessage
+    });
+
+    res.json({
+        message: botMessage,
+        results,
+        mapped: anyMapped
+    });
 });
 
 // @desc    Get chat history

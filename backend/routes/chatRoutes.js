@@ -4,7 +4,7 @@ const { uploadChatDocument, getChatHistory, sendChatText } = require('../control
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
-router.post('/upload', protect, upload.single('file'), uploadChatDocument);
+router.post('/upload', protect, upload.array('files', 10), uploadChatDocument);
 router.post('/text', protect, sendChatText);
 router.get('/history', protect, getChatHistory);
 
