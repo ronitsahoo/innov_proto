@@ -19,6 +19,11 @@
     "tailwind-merge": "^3.4.1",
     "axios": "^1.6.2"
   },
+
+  "overrides": {
+    "ajv": ">=8.18.0",
+    "minimatch": ">=10.2.1"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.7",
