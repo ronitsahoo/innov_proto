@@ -37,7 +37,8 @@ export const DataProvider = ({ children }) => {
                     status: found.status,
                     file: found.originalName || found.fileUrl.split('/').pop(),
                     url: found.fileUrl,
-                    reason: found.rejectionReason
+                    reason: found.rejectionReason,
+                    uploadedAt: found.createdAt || found.updatedAt || new Date().toISOString()
                 };
                 if (found.status === 'approved') approvedCount++;
             } else {
@@ -111,13 +112,29 @@ export const DataProvider = ({ children }) => {
             const transformed = data.map(profile => {
                 if (!profile.userId) return null;
 
+                // Build verification history from notifications
+                const verificationHistory = (profile.notifications || [])
+                    .filter(n => n.message && (n.message.includes('approved') || n.message.includes('rejected')))
+                    .map(n => {
+                        const isApproved = n.message.includes('approved');
+                        // Extract doc type from notification message
+                        const match = n.message.match(/\((.+?)\)/);
+                        return {
+                            file: match ? match[1] : 'Document',
+                            status: isApproved ? 'approved' : 'rejected',
+                            reason: isApproved ? null : n.message.split(': ')[1] || '',
+                            date: n.date
+                        };
+                    });
+
                 return {
                     id: profile.userId._id,
                     name: profile.userId.name,
                     email: profile.userId.email,
-                    role: profile.userId.role,
+                    role: profile.userId.role || 'student',
                     branch: profile.userId.branch,
                     year: profile.userId.year,
+                    verificationHistory,
                     data: formatStudentData(profile)
                 };
             }).filter(Boolean);
