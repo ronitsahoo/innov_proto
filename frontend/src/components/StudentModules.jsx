@@ -87,7 +87,9 @@ export function DocumentUpload({ fullPage = false }) {
 
     // Has at least one doc that's uploaded (ready to submit) but not yet submitted
     const hasUploadedDocs = Object.values(files).some(f => f.status === 'uploaded');
-    // All docs are in a final-ish state (no more uploads pending)
+    // Count rejected docs that still need re-upload
+    const rejectedCount = Object.values(files).filter(f => f.status === 'rejected').length;
+    // Count pending docs
     const pendingCount = Object.values(files).filter(f => f.status === 'pending').length;
 
     return (
@@ -106,7 +108,13 @@ export function DocumentUpload({ fullPage = false }) {
                     </span>
                 </div>
 
-                {pendingCount > 0 ? (
+                {/* Status banner */}
+                {rejectedCount > 0 && !hasUploadedDocs ? (
+                    <div className={`${styles.subHeader} text-red-600 dark:text-red-400 mb-4 flex items-center gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2`}>
+                        <XCircle size={styles.iconHeaderSize * 0.65} />
+                        {rejectedCount} document{rejectedCount > 1 ? 's' : ''} rejected — please re-upload and submit again
+                    </div>
+                ) : pendingCount > 0 ? (
                     <p className={`${styles.subHeader} text-orange-500 dark:text-orange-400 mb-4 flex items-center gap-2`}>
                         <AlertCircle size={styles.iconHeaderSize * 0.6} /> {pendingCount} document{pendingCount > 1 ? 's' : ''} not yet uploaded
                     </p>
@@ -125,11 +133,17 @@ export function DocumentUpload({ fullPage = false }) {
                         const doc = files[docName];
                         const isUploading = uploadingDoc === docName;
                         const isDeleting = deletingDoc === docName;
-                        const canDelete = doc.file && (doc.status === 'uploaded');
-                        const canUpload = doc.status === 'pending' || doc.status === 'rejected';
+                        // Can delete if still in 'uploaded' (pre-submission) state
+                        const canDelete = doc.file && doc.status === 'uploaded';
+                        // Show upload area for pending OR rejected docs
+                        const needsUpload = doc.status === 'pending' || doc.status === 'rejected';
 
                         return (
-                            <div key={docName} className={`p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/10 transition-colors ${fullPage ? 'text-lg' : 'text-sm'}`}>
+                            <div key={docName} className={`p-4 rounded-xl border transition-colors ${fullPage ? 'text-lg' : 'text-sm'} ${doc.status === 'rejected'
+                                    ? 'bg-red-50/50 dark:bg-red-500/5 border-red-200 dark:border-red-500/20'
+                                    : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/10'
+                                }`}>
+                                {/* Doc name + status badge */}
                                 <div className="flex justify-between items-start mb-3">
                                     <span className="font-medium text-gray-700 dark:text-gray-200">{docName}</span>
                                     <span className={`text-[10px] uppercase px-2 py-0.5 rounded border font-bold ${getStatusColor(doc.status)}`}>
@@ -137,15 +151,44 @@ export function DocumentUpload({ fullPage = false }) {
                                     </span>
                                 </div>
 
+                                {/* Rejection reason */}
                                 {doc.status === 'rejected' && doc.reason && (
-                                    <p className="text-xs text-red-500 dark:text-red-400 mb-2 flex items-center gap-1">
-                                        <XCircle size={12} /> Rejected: {doc.reason}
-                                    </p>
+                                    <div className="mb-3 px-3 py-2 bg-red-100 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/20">
+                                        <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1 mb-0.5">
+                                            <XCircle size={11} /> Rejection Reason
+                                        </p>
+                                        <p className="text-xs text-red-500 dark:text-red-400/80">{doc.reason}</p>
+                                    </div>
                                 )}
 
                                 <div className="flex items-center gap-2 mt-1">
-                                    {doc.file && !canUpload ? (
-                                        /* Uploaded / Submitted / Approved — show filename */
+                                    {/* Rejected: show old filename (crossed-out) and re-upload below */}
+                                    {doc.status === 'rejected' && doc.file ? (
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            {/* Old file — greyed out */}
+                                            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 min-w-0 line-through">
+                                                <FileText size={13} className="flex-shrink-0" />
+                                                <span className="truncate text-xs" title={doc.file}>{doc.file}</span>
+                                            </div>
+                                            {/* Re-upload button */}
+                                            <label className={`cursor-pointer ${isUploading ? 'pointer-events-none' : ''}`}>
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept=".jpg,.jpeg,.png,.pdf"
+                                                    onChange={(e) => e.target.files[0] && handleFileUpload(docName, e.target.files[0])}
+                                                    disabled={isUploading}
+                                                />
+                                                <div className={`text-center border-2 border-dashed rounded-lg py-2 px-3 transition-colors text-xs font-semibold ${isUploading
+                                                        ? 'border-blue-300 dark:border-neon-blue/50 text-blue-500 cursor-wait bg-blue-50 dark:bg-blue-500/5'
+                                                        : 'border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'
+                                                    }`}>
+                                                    {isUploading ? '⏳ Uploading...' : '↑ Click to Re-upload File'}
+                                                </div>
+                                            </label>
+                                        </div>
+                                    ) : !needsUpload && doc.file ? (
+                                        /* Uploaded / Submitted / Approved — show filename as link */
                                         <div className="flex-1 flex items-center gap-2 text-blue-600 dark:text-neon-blue bg-blue-50 dark:bg-neon-blue/5 px-3 py-2 rounded-lg border border-blue-100 dark:border-neon-blue/10 min-w-0">
                                             <FileText size={14} className="flex-shrink-0" />
                                             <a
@@ -159,7 +202,7 @@ export function DocumentUpload({ fullPage = false }) {
                                             </a>
                                         </div>
                                     ) : (
-                                        /* Not yet uploaded or rejected — show upload area */
+                                        /* Pending — no file yet, show upload area */
                                         <label className={`flex-1 cursor-pointer ${isUploading ? 'pointer-events-none' : ''}`}>
                                             <input
                                                 type="file"
@@ -169,30 +212,26 @@ export function DocumentUpload({ fullPage = false }) {
                                                 disabled={isUploading}
                                             />
                                             <div className={`text-center border border-dashed rounded-lg py-2 px-3 transition-colors text-xs ${isUploading
-                                                ? 'border-blue-300 dark:border-neon-blue/50 text-blue-500 dark:text-neon-blue cursor-wait'
-                                                : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-500 dark:hover:border-neon-blue hover:text-blue-600 dark:hover:text-neon-blue'
+                                                    ? 'border-blue-300 dark:border-neon-blue/50 text-blue-500 dark:text-neon-blue cursor-wait'
+                                                    : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-500 dark:hover:border-neon-blue hover:text-blue-600 dark:hover:text-neon-blue'
                                                 }`}>
-                                                {isUploading ? 'Uploading...' : (doc.status === 'rejected' ? '↑ Re-upload File' : '↑ Click to Upload')}
+                                                {isUploading ? 'Uploading...' : '↑ Click to Upload'}
                                             </div>
                                         </label>
                                     )}
 
-                                    {/* Delete button — only for uploaded (not yet submitted) docs */}
+                                    {/* Delete button — only for 'uploaded' (pre-submission) docs */}
                                     {canDelete && (
                                         <button
                                             onClick={() => handleDelete(docName)}
                                             disabled={isDeleting}
-                                            title="Delete and re-upload"
+                                            title="Remove and re-upload"
                                             className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${isDeleting
-                                                ? 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-300 cursor-wait'
-                                                : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20'
+                                                    ? 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-300 cursor-wait'
+                                                    : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20'
                                                 }`}
                                         >
-                                            {isDeleting ? (
-                                                <Clock size={14} />
-                                            ) : (
-                                                <XCircle size={14} />
-                                            )}
+                                            {isDeleting ? <Clock size={14} /> : <XCircle size={14} />}
                                         </button>
                                     )}
                                 </div>
@@ -380,9 +419,9 @@ export function HostelApp({ fullPage = false }) {
                         <Home size={styles.iconHeaderSize} className="text-orange-500 dark:text-orange-400" /> Hostel
                     </h3>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${isAllocated ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-500 border-green-200 dark:border-green-500/20' :
-                            isPending ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border-yellow-200 dark:border-yellow-500/20' :
-                                isRejected ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-500 border-red-200 dark:border-red-500/20' :
-                                    'bg-gray-100 dark:bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-500/20'
+                        isPending ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border-yellow-200 dark:border-yellow-500/20' :
+                            isRejected ? 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-500 border-red-200 dark:border-red-500/20' :
+                                'bg-gray-100 dark:bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-500/20'
                         }`}>
                         {isAllocated ? 'APPROVED' : isPending ? 'PENDING' : isRejected ? 'REJECTED' : 'NOT APPLIED'}
                     </span>
@@ -611,7 +650,7 @@ export function LMSActivation({ fullPage = false }) {
                                 </p>
                             </div>
                         )}
-                        
+
                         <div className="flex gap-4 mb-6 bg-gray-100 dark:bg-white/5 p-1 rounded-lg">
                             <button onClick={() => setActiveTab('courses')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${activeTab === 'courses' ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>Courses</button>
                             <button onClick={() => setActiveTab('timetable')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${activeTab === 'timetable' ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>Timetable</button>

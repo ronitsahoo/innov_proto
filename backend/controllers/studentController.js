@@ -31,16 +31,16 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const profile = await StudentProfile.findOne({ userId: req.user._id });
 
     if (profile) {
-        // If a doc of the same type already exists (and is uploaded/pending), replace it
+        // If a doc of the same type already exists in a replaceable state, replace it
         const existingIndex = profile.documents.findIndex(
-            d => d.type === type && ['pending', 'uploaded'].includes(d.status)
+            d => d.type === type && ['pending', 'uploaded', 'rejected'].includes(d.status)
         );
 
         if (existingIndex !== -1) {
             // Delete old file from disk
             const oldFilePath = path.join(__dirname, '..', profile.documents[existingIndex].fileUrl);
             if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
-            // Remove old doc
+            // Remove old doc entry
             profile.documents.splice(existingIndex, 1);
         }
 
@@ -180,7 +180,7 @@ const activateLMS = asyncHandler(async (req, res) => {
 // @access  Private (Student)
 const getSubjects = asyncHandler(async (req, res) => {
     const user = req.user;
-    
+
     if (!user.year || !user.branch) {
         res.status(400);
         throw new Error('Student year and branch information is required');
