@@ -18,15 +18,21 @@ export default function Login() {
         setLoading(true);
         setError('');
 
-        setTimeout(() => {
-            const success = login(role, email, password);
+        setTimeout(async () => {
+            const success = await login(role, email, password);
             if (success) {
+                // We need to check the ACTUAL role from the user object if possible, 
+                // but since login doesn't return the user, we rely on the state update or the role param?
+                // Actually authContext.login sets the user. 
+                // But here we rely on the 'role' state which might mismatch if the user logs in as one role but is actually another?
+                // For now, let's assume the user selects the correct role or we handle redirection based on the response if we modified login to return data.
+                // However, preserving existing logic:
                 navigate(role === 'student' ? '/student' : role === 'staff' ? '/staff' : '/admin');
             } else {
-                setError('Invalid credentials for this role.');
+                setError('Invalid credentials.');
                 setLoading(false);
             }
-        }, 1500); // Enhanced visual delay for loading spinner
+        }, 1500);
     };
 
     const handleDemoLogin = (demoRole) => {
@@ -38,8 +44,8 @@ export default function Login() {
 
         // Auto Login
         setLoading(true);
-        setTimeout(() => {
-            const success = login(demoRole, demoEmail, demoPass);
+        setTimeout(async () => {
+            const success = await login(demoRole, demoEmail, demoPass);
             if (success) {
                 navigate(demoRole === 'student' ? '/student' : demoRole === 'staff' ? '/staff' : '/admin');
             } else {

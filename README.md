@@ -1,16 +1,43 @@
-# React + Vite
+# ARIA - Academic Registration Intelligence Assistant
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Detailed monorepo setup for ARIA.
 
-Currently, two official plugins are available:
+## Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **frontend/**: React + Vite application
+- **backend/**: Node.js + Express + MongoDB application
 
-## React Compiler
+## Setup Instructions
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+### 1. Backend Setup
 
-## Expanding the ESLint configuration
+```bash
+cd backend
+npm install
+# Make sure your MongoDB is running or update .env with valid MONGO_URI
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The backend server will start on port 5000.
+
+### 2. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will start on http://localhost:5173 (or similar).
+
+## Environment Variables
+
+Check `backend/.env` and `frontend/.env` for configuration.
+
+## Features
+
+- JWT Authentication (HttpOnly Cookies)
+- Role-based Access Control (Student, Admin, Staff)
+- Student Profile & Document Uploads
+- Razorpay Payment Integration
+- Admin Dashboard with Analytics
