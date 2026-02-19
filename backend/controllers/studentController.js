@@ -1,5 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const StudentProfile = require('../models/StudentProfile');
+const fs = require('fs');
+const path = require('path');
 
 // @desc    Get student profile
 // @route   GET /api/student/profile
@@ -28,10 +30,24 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const profile = await StudentProfile.findOne({ userId: req.user._id });
 
     if (profile) {
+        // If a doc of the same type already exists (and is uploaded/pending), replace it
+        const existingIndex = profile.documents.findIndex(
+            d => d.type === type && ['pending', 'uploaded'].includes(d.status)
+        );
+
+        if (existingIndex !== -1) {
+            // Delete old file from disk
+            const oldFilePath = path.join(__dirname, '..', profile.documents[existingIndex].fileUrl);
+            if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+            // Remove old doc
+            profile.documents.splice(existingIndex, 1);
+        }
+
         const newDoc = {
             fileUrl: `/uploads/${req.file.filename}`,
+            originalName: req.file.originalname,
             type,
-            status: 'pending'
+            status: 'uploaded'
         };
 
         profile.documents.push(newDoc);
@@ -44,22 +60,81 @@ const uploadDocument = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Delete a document
+// @route   DELETE /api/student/document/:docId
+// @access  Private (Student)
+const deleteDocument = asyncHandler(async (req, res) => {
+    const profile = await StudentProfile.findOne({ userId: req.user._id });
+
+    if (!profile) {
+        res.status(404);
+        throw new Error('Profile not found');
+    }
+
+    const doc = profile.documents.id(req.params.docId);
+    if (!doc) {
+        res.status(404);
+        throw new Error('Document not found');
+    }
+
+    // Only allow deleting docs that are uploaded (not submitted/approved/rejected)
+    if (doc.status === 'submitted' || doc.status === 'approved') {
+        res.status(400);
+        throw new Error('Cannot delete a submitted or approved document');
+    }
+
+    // Remove file from disk
+    const filePath = path.join(__dirname, '..', doc.fileUrl);
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+    }
+
+    // Remove doc from array
+    profile.documents.pull({ _id: req.params.docId });
+    await profile.save();
+
+    res.json(profile);
+});
+
+// @desc    Submit all uploaded documents (makes them visible to staff)
+// @route   POST /api/student/submit-documents
+// @access  Private (Student)
+const submitDocuments = asyncHandler(async (req, res) => {
+    const profile = await StudentProfile.findOne({ userId: req.user._id });
+
+    if (!profile) {
+        res.status(404);
+        throw new Error('Profile not found');
+    }
+
+    let submitted = 0;
+    profile.documents.forEach(doc => {
+        if (doc.status === 'uploaded') {
+            doc.status = 'submitted';
+            submitted++;
+        }
+    });
+
+    if (submitted === 0) {
+        res.status(400);
+        throw new Error('No uploaded documents to submit');
+    }
+
+    await profile.save();
+    res.json(profile);
+});
+
 const applyHostel = asyncHandler(async (req, res) => {
     const { roomType } = req.body;
     const profile = await StudentProfile.findOne({ userId: req.user._id });
 
     if (profile) {
-        // Simple allocation logic
         const block = roomType === 'Male' ? 'B' : 'G';
         const floor = Math.floor(Math.random() * 4) + 1;
         const roomNo = Math.floor(Math.random() * 20) + 1;
 
-        profile.hostel.roomType = roomType;
-        profile.hostel.status = 'approved';
-        // We can store exact room in another field if schema allows, or just assume type for now since roomType in schema matches string
-        // Schema: roomType: String
-        // Let's store "Boys Hostel - B-101"
         profile.hostel.roomType = `${roomType === 'Male' ? 'Boys' : 'Girls'} Hostel - ${block}-${floor}0${roomNo}`;
+        profile.hostel.status = 'approved';
 
         await profile.save();
         res.json(profile);
@@ -84,6 +159,8 @@ const activateLMS = asyncHandler(async (req, res) => {
 module.exports = {
     getProfile,
     uploadDocument,
+    deleteDocument,
+    submitDocuments,
     applyHostel,
     activateLMS
 };

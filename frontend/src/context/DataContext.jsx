@@ -21,12 +21,21 @@ export const DataProvider = ({ children }) => {
         let approvedCount = 0;
 
         defaultDocs.forEach(key => {
-            const found = backendData.documents.find(d => d.type === key);
+            // Find the latest document of this type (prefer submitted/approved/rejected over uploaded)
+            const docsOfType = backendData.documents.filter(d => d.type === key);
+            // Priority: approved > rejected > submitted > uploaded > none
+            const priority = ['approved', 'rejected', 'submitted', 'uploaded'];
+            let found = null;
+            for (const status of priority) {
+                found = docsOfType.find(d => d.status === status);
+                if (found) break;
+            }
+
             if (found) {
                 files[key] = {
                     id: found._id,
                     status: found.status,
-                    file: found.fileUrl.split('/').pop(),
+                    file: found.originalName || found.fileUrl.split('/').pop(),
                     url: found.fileUrl,
                     reason: found.rejectionReason
                 };
@@ -35,6 +44,14 @@ export const DataProvider = ({ children }) => {
                 files[key] = { status: 'pending', file: null };
             }
         });
+
+        // Overall doc status
+        const allStatuses = Object.values(files).map(f => f.status);
+        let overallDocStatus = 'pending';
+        if (approvedCount === defaultDocs.length) overallDocStatus = 'approved';
+        else if (allStatuses.some(s => s === 'rejected')) overallDocStatus = 'rejected';
+        else if (allStatuses.some(s => s === 'submitted')) overallDocStatus = 'submitted';
+        else if (allStatuses.some(s => s === 'uploaded')) overallDocStatus = 'uploaded';
 
         // Fee
         const feeStatus = backendData.fee.status;
@@ -64,7 +81,7 @@ export const DataProvider = ({ children }) => {
 
         return {
             ...backendData,
-            documents: { status: approvedCount === defaultDocs.length ? 'approved' : 'pending', files },
+            documents: { status: overallDocStatus, files },
             fee,
             hostel,
             lms
@@ -123,6 +140,7 @@ export const DataProvider = ({ children }) => {
     }, [user, fetchStudentData, fetchAllStudents]);
 
     // ACTIONS
+
     const uploadDocument = async (type, file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -135,6 +153,28 @@ export const DataProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error(error);
+            return false;
+        }
+    };
+
+    const deleteDocument = async (docId) => {
+        try {
+            await api.delete(`/student/document/${docId}`);
+            await fetchStudentData();
+            return true;
+        } catch (error) {
+            console.error("Delete failed:", error);
+            return false;
+        }
+    };
+
+    const submitDocuments = async () => {
+        try {
+            await api.post('/student/submit-documents');
+            await fetchStudentData();
+            return true;
+        } catch (error) {
+            console.error("Submit failed:", error);
             return false;
         }
     };
@@ -198,18 +238,12 @@ export const DataProvider = ({ children }) => {
         }
     };
 
-    // Legacy support for updateModuleStatus if components use it, redirect to actions
     const updateModuleStatus = (moduleName, newData) => {
-        // This is a deprecated method in new architecture.
-        // Try to map or ignore.
         console.warn("updateModuleStatus is deprecated. Use specific actions.");
     };
 
-    // Legacy support / Staff Action
     const updateStudentStatus = async (studentId, moduleName, status, reason = null, fileKey = null) => {
         if (moduleName === 'documents' && fileKey) {
-            // We need to find the document ID. 
-            // allStudents contains the data.
             const student = allStudents.find(s => s.id === studentId);
             const docId = student?.data?.documents?.files?.[fileKey]?.id;
 
@@ -221,7 +255,7 @@ export const DataProvider = ({ children }) => {
                         status,
                         rejectionReason: reason
                     });
-                    await fetchAllStudents(); // Refresh
+                    await fetchAllStudents();
                 } catch (error) {
                     console.error("Verification failed", error);
                 }
@@ -239,6 +273,8 @@ export const DataProvider = ({ children }) => {
             fetchStudentData,
             fetchAllStudents,
             uploadDocument,
+            deleteDocument,
+            submitDocuments,
             initiateFeePayment,
             applyHostel,
             activateLMS,

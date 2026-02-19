@@ -5,12 +5,10 @@ const StudentProfile = require('../models/StudentProfile');
 // @route   GET /api/staff/pending-documents
 // @access  Private (Staff/Admin)
 const getPendingDocuments = asyncHandler(async (req, res) => {
-    // Find profiles with at least one pending document
-    const students = await StudentProfile.find({ 'documents.status': 'pending' })
+    // Find profiles with at least one 'submitted' document (ready for staff review)
+    const students = await StudentProfile.find({ 'documents.status': 'submitted' })
         .populate('userId', 'name email branch year');
 
-    // Extract only the pending documents with user info
-    // Or just return the student profiles and let frontend filter
     res.json(students);
 });
 

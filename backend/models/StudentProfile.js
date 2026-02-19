@@ -2,10 +2,11 @@ const mongoose = require('mongoose');
 
 const documentSchema = new mongoose.Schema({
     fileUrl: { type: String, required: true },
+    originalName: { type: String }, // original filename for display
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected'],
-        default: 'pending'
+        enum: ['pending', 'uploaded', 'submitted', 'approved', 'rejected'],
+        default: 'uploaded'
     },
     rejectionReason: { type: String },
     type: { type: String, required: true } // e.g., '10th Marksheet', 'Aadhar'

@@ -14,13 +14,13 @@ export default function StaffDashboard() {
     const [viewMode, setViewMode] = useState('queue'); // 'queue' or 'history'
     const [expandedHistory, setExpandedHistory] = useState(null);
 
-    // Get students with AT LEAST one pending/submitted file
+    // Strip '/api' from base URL to get server root (uploads served at /uploads)
+    const SERVER_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+
+    // Get students with AT LEAST one 'submitted' document (student clicked Submit)
     const pendingDocsQueue = allStudents.filter(s => {
         if (s.role !== 'student') return false;
         const files = s.data?.documents?.files || {};
-        // We want to see files that are 'submitted' (ready for review)
-        // If status is 'pending', the student hasn't uploaded yet (or hasn't clicked submit if that concept existed, but here upload sets to submitted)
-        // Check StudentModules.jsx: upload sets status to 'submitted'.
         return Object.values(files).some(f => f.status === 'submitted');
     });
 
@@ -181,7 +181,14 @@ export default function StaffDashboard() {
                                                             </div>
                                                         ) : (
                                                             <>
-                                                                <Button variant="secondary" size="sm">View</Button>
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    onClick={() => window.open(`${SERVER_URL}${fileData.url}`, '_blank')}
+                                                                    disabled={!fileData.url}
+                                                                >
+                                                                    View
+                                                                </Button>
                                                                 <Button className="bg-green-500 hover:bg-green-600 text-white border-green-600" size="sm" onClick={() => handleApprove(student.id, docName)}>
                                                                     <CheckCircle size={16} /> Approve
                                                                 </Button>
