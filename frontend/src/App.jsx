@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
+import StaffVerifications from './pages/StaffVerifications';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminPayments from './pages/AdminPayments';
 import AddStaff from './pages/AddStaff';
@@ -48,7 +49,7 @@ export default function App() {
 
               {/* Staff Routes */}
               <Route path="/staff" element={<ProtectedRoute allowedRoles={['staff']}><StaffDashboard /></ProtectedRoute>} />
-              <Route path="/staff/verifications" element={<ProtectedRoute allowedRoles={['staff']}><StaffDashboard /></ProtectedRoute>} />
+              <Route path="/staff/verifications" element={<ProtectedRoute allowedRoles={['staff']}><StaffVerifications /></ProtectedRoute>} />
 
               {/* Admin Routes */}
               <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />

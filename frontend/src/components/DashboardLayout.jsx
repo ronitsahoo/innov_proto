@@ -3,7 +3,8 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     CreditCard, Files, Home, LogOut,
-    User, GraduationCap, Building, BookOpen, AlertCircle, Menu, X, Sun, Moon
+    User, GraduationCap, Building, BookOpen, AlertCircle, Menu, X, Sun, Moon,
+    ShieldCheck, LayoutDashboard
 } from 'lucide-react';
 import ChatBot from './ChatBot';
 
@@ -92,8 +93,8 @@ export default function DashboardLayout() {
 
                     {user.role === 'staff' && (
                         <>
-                            <SidebarLink to="/staff" icon={Home} label="Dashboard" onClick={closeSidebar} end={true} />
-                            <SidebarLink to="/staff/verifications" icon={Files} label="Verifications" onClick={closeSidebar} />
+                            <SidebarLink to="/staff" icon={LayoutDashboard} label="Dashboard" onClick={closeSidebar} end={true} />
+                            <SidebarLink to="/staff/verifications" icon={ShieldCheck} label="Verifications" onClick={closeSidebar} />
                         </>
                     )}
 
