@@ -9,7 +9,8 @@ ARIA is a full-stack MERN application designed to streamline the student onboard
 ## ✨ Key Features
 
 ### 🎓 Student Onboarding
-- **Document Upload & Verification** - Upload and track document approval status
+- **AI-Enabled Document Upload & Verification** - Upload and track document approval status with the help of AI
+- **AI-Enabled Document Classification** - Classifies student's documents with the help of AI
 - **Tuition Fee Payment** - Integrated Razorpay payment system with test mode
 - **Hostel Application** - Apply for hostel accommodation with room preferences
 - **LMS Activation** - Course registration and timetable management
