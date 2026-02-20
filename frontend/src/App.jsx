@@ -7,6 +7,10 @@ import Signup from './pages/Signup';
 import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AddStaff from './pages/AddStaff';
+import HostelInventory from './pages/HostelInventory';
+import AddDocuments from './pages/AddDocuments';
+import AllStudents from './pages/AllStudents'; // Import AllStudents
 import { DocumentUpload, FeePayment, HostelApp, LMSActivation } from './components/StudentModules';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -47,8 +51,10 @@ export default function App() {
 
               {/* Admin Routes */}
               <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-              <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><div className="text-center py-20 text-gray-400">Reports Module Coming Soon</div></ProtectedRoute>} />
+              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={['admin']}><AllStudents /></ProtectedRoute>} /> {/* Updated Route */}
+              <Route path="/admin/add-staff" element={<ProtectedRoute allowedRoles={['admin']}><AddStaff /></ProtectedRoute>} />
+              <Route path="/admin/hostel-inventory" element={<ProtectedRoute allowedRoles={['admin']}><HostelInventory /></ProtectedRoute>} />
+              <Route path="/admin/documents" element={<ProtectedRoute allowedRoles={['admin']}><AddDocuments /></ProtectedRoute>} />
             </Route>
 
             <Route path="/" element={<Navigate to="/login" />} />
@@ -58,3 +64,4 @@ export default function App() {
     </AuthProvider>
   );
 }
+
