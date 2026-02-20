@@ -9,11 +9,15 @@ const {
     activateLMS,
     getSubjects,
     registerSubject,
-    getRegisteredSubjects
+    getRegisteredSubjects,
+    getRequiredDocuments,
+    getHostelAvailability
 } = require('../controllers/studentController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
+router.get('/required-documents', protect, getRequiredDocuments);
+router.get('/hostel-availability', protect, getHostelAvailability);
 router.route('/profile').get(protect, getProfile);
 router.route('/upload-document').post(protect, upload.single('file'), uploadDocument);
 router.route('/document/:docId').delete(protect, deleteDocument);

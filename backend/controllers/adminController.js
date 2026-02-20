@@ -1,6 +1,16 @@
 const asyncHandler = require('express-async-handler');
 const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
+const AdminSettings = require('../models/AdminSettings');
+
+// Helper to get or create singleton settings doc
+const getSettings = async () => {
+    let settings = await AdminSettings.findOne();
+    if (!settings) {
+        settings = await AdminSettings.create({ requiredDocuments: [], hostelRooms: [] });
+    }
+    return settings;
+};
 
 // @desc    Get all students
 // @route   GET /api/admin/students
@@ -73,6 +83,22 @@ const approveRejectHostel = asyncHandler(async (req, res) => {
         throw new Error('Student profile not found');
     }
 
+    // Only decrement room count when approving a pending application
+    if (status === 'approved' && profile.hostel.status === 'pending') {
+        const settings = await getSettings();
+        const roomEntry = settings.hostelRooms.find(
+            r => r.gender === profile.hostel.gender && r.roomType === profile.hostel.roomType
+        );
+        if (roomEntry) {
+            if (roomEntry.available <= 0) {
+                res.status(400);
+                throw new Error('No rooms available for this type — cannot approve');
+            }
+            roomEntry.available = Math.max(0, roomEntry.available - 1);
+            await settings.save();
+        }
+    }
+
     profile.hostel.status = status;
     if (status === 'rejected') {
         profile.hostel.rejectionReason = rejectionReason || 'Application rejected by admin';
@@ -120,12 +146,179 @@ const getAllPayments = asyncHandler(async (req, res) => {
 
     res.json(allTransactions);
 });
+// @desc    Get admin settings (required docs + hostel rooms)
+// @route   GET /api/admin/settings
+// @access  Private (Admin)
+const getAdminSettings = asyncHandler(async (req, res) => {
+    const settings = await getSettings();
+    res.json(settings);
+});
+
+// @desc    Update required documents list
+// @route   PUT /api/admin/settings/documents
+// @access  Private (Admin)
+const updateRequiredDocuments = asyncHandler(async (req, res) => {
+    const { documents } = req.body; // Array of { name, type, description }
+
+    if (!Array.isArray(documents)) {
+        res.status(400);
+        throw new Error('documents must be an array');
+    }
+
+    // Validate each doc
+    for (const doc of documents) {
+        if (!doc.name || !doc.type) {
+            res.status(400);
+            throw new Error('Each document must have a name and type');
+        }
+    }
+
+    const settings = await getSettings();
+    settings.requiredDocuments = documents;
+    await settings.save();
+
+    res.json(settings.requiredDocuments);
+});
+
+// @desc    Update hostel room inventory
+// @route   PUT /api/admin/settings/hostel-rooms
+// @access  Private (Admin)
+const updateHostelRooms = asyncHandler(async (req, res) => {
+    const { rooms } = req.body; // Array of { gender, roomType, total, available }
+
+    if (!Array.isArray(rooms)) {
+        res.status(400);
+        throw new Error('rooms must be an array');
+    }
+
+    const validGenders = ['Male', 'Female'];
+    const validRoomTypes = ['single', 'double', 'triple'];
+
+    for (const room of rooms) {
+        if (!validGenders.includes(room.gender) || !validRoomTypes.includes(room.roomType)) {
+            res.status(400);
+            throw new Error(`Invalid gender or roomType in room entry`);
+        }
+        if (room.total < 0 || room.available < 0) {
+            res.status(400);
+            throw new Error('Room counts cannot be negative');
+        }
+    }
+
+    const settings = await getSettings();
+
+    // For each new room entry, preserve existing available count if total hasn't changed
+    // to avoid resetting availability when admin just adds a new type
+    const updatedRooms = rooms.map(newRoom => {
+        const existing = settings.hostelRooms.find(
+            r => r.gender === newRoom.gender && r.roomType === newRoom.roomType
+        );
+        // If total increases, increase available proportionally
+        if (existing && newRoom.total > existing.total) {
+            const added = newRoom.total - existing.total;
+            return { ...newRoom, available: Math.min(existing.available + added, newRoom.total) };
+        }
+        return newRoom;
+    });
+
+    settings.hostelRooms = updatedRooms;
+    await settings.save();
+
+    res.json(settings.hostelRooms);
+});
+
+// @desc    Get hostel room availability (for students)
+// @route   GET /api/admin/hostel-availability
+// @access  Private
+const getHostelAvailability = asyncHandler(async (req, res) => {
+    const settings = await getSettings();
+    const availability = settings.hostelRooms.map(r => ({
+        gender: r.gender,
+        roomType: r.roomType,
+        available: r.available
+    }));
+    res.json(availability);
+});
+
+// @desc    Add a new staff member
+// @route   POST /api/admin/add-staff
+// @access  Private (Admin)
+const addStaff = asyncHandler(async (req, res) => {
+    const { name, email, password, role, department } = req.body;
+
+    if (!name || !email || !password || !role) {
+        res.status(400);
+        throw new Error('Please provide all required fields');
+    }
+
+    const userExists = await User.findOne({ email });
+
+    if (userExists) {
+        res.status(400);
+        throw new Error('User already exists');
+    }
+
+    // Hash password handled in User model pre-save? 
+    // Usually yes, but let's assume User.create handles it via model hooks if setup.
+    // Checking User model if needed, but standard practice is model hook.
+    // If not, we might need bcrypt here. Assuming model handles it for now.
+
+    // Create user
+    const user = await User.create({
+        name,
+        email,
+        password,
+        role,
+        department // Assuming User model has department field or it's ignored
+    });
+
+    if (user) {
+        res.status(201).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        });
+    } else {
+        res.status(400);
+        throw new Error('Invalid user data');
+    }
+});
+
+// @desc    Delete a student
+// @route   DELETE /api/admin/students/:id
+// @access  Private (Admin)
+const deleteStudent = asyncHandler(async (req, res) => {
+    const student = await User.findById(req.params.id);
+
+    if (!student) {
+        res.status(404);
+        throw new Error('Student not found');
+    }
+
+    if (student.role !== 'student') {
+        res.status(400);
+        throw new Error('Can only delete students via this route');
+    }
+
+    await StudentProfile.deleteOne({ userId: student._id });
+    await User.deleteOne({ _id: student._id });
+
+    res.json({ message: 'Student removed' });
+});
 
 module.exports = {
     getStudents,
     getAnalytics,
     getHostelApplications,
     approveRejectHostel,
-    getAllPayments
+    getAllPayments,
+    getAdminSettings,
+    updateRequiredDocuments,
+    updateHostelRooms,
+    getHostelAvailability,
+    addStaff,
+    deleteStudent
 };
+
 

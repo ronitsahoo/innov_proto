@@ -12,7 +12,7 @@ export const DataProvider = ({ children }) => {
     const [allStudents, setAllStudents] = useState([]);
     const [progress, setProgress] = useState(0);
 
-    const formatStudentData = (backendData) => {
+    const formatStudentData = (backendData, requiredDocsList) => {
         if (!backendData) return null;
 
         // Documents
@@ -29,12 +29,18 @@ export const DataProvider = ({ children }) => {
             "Passport Photo",
             "Signature"
         ];
+        // Use provided list or empty if none (Admin should configure them)
+        const requiredDocs = requiredDocsList || [];
         const files = {};
         let approvedCount = 0;
+        let submittedCount = 0;
 
-        defaultDocs.forEach(key => {
-            // Find the latest document of this type (prefer submitted/approved/rejected over uploaded)
+        // Iterate over the REQUIRED docs from admin settings
+        requiredDocs.forEach(reqDoc => {
+            const key = reqDoc.type; // e.g. '10th_marksheet'
+            // Find the latest document of this type in student's uploads
             const docsOfType = backendData.documents.filter(d => d.type === key);
+
             // Priority: approved > rejected > submitted > uploaded > none
             const priority = ['approved', 'rejected', 'submitted', 'uploaded'];
             let found = null;
@@ -50,21 +56,44 @@ export const DataProvider = ({ children }) => {
                     file: found.originalName || found.fileUrl.split('/').pop(),
                     url: found.fileUrl,
                     reason: found.rejectionReason,
-                    uploadedAt: found.createdAt || found.updatedAt || new Date().toISOString()
+                    uploadedAt: found.createdAt || found.updatedAt || new Date().toISOString(),
+                    label: reqDoc.name, // Display name from admin settings
+                    description: reqDoc.description
                 };
                 if (found.status === 'approved') approvedCount++;
+                if (found.status === 'submitted') submittedCount++;
             } else {
-                files[key] = { status: 'pending', file: null };
+                files[key] = {
+                    status: 'pending',
+                    file: null,
+                    label: reqDoc.name,
+                    description: reqDoc.description
+                };
             }
         });
 
-        // Overall doc status
-        const allStatuses = Object.values(files).map(f => f.status);
+        // Overall doc status logic
+        // If NO required docs exist in admin settings, we can consider it 'approved' or 'pending'.
+        // Let's say 'approved' if requiredDocs.length is 0 to avoid blocking, or 'pending' if we want them to wait.
+        // Assuming if there are requirements, we check them.
         let overallDocStatus = 'pending';
-        if (approvedCount === defaultDocs.length) overallDocStatus = 'approved';
-        else if (allStatuses.some(s => s === 'rejected')) overallDocStatus = 'rejected';
-        else if (allStatuses.some(s => s === 'submitted')) overallDocStatus = 'submitted';
-        else if (allStatuses.some(s => s === 'uploaded')) overallDocStatus = 'uploaded';
+        if (requiredDocs.length > 0) {
+            if (approvedCount === requiredDocs.length) overallDocStatus = 'approved';
+            else if (Object.values(files).some(f => f.status === 'rejected')) overallDocStatus = 'rejected';
+            else if (Object.values(files).some(f => f.status === 'submitted')) overallDocStatus = 'submitted'; // Only if ALL are submitted? Or AT LEAST one? Usually we wait for all to submit.
+            // Simplified: If all are at least submitted or approved -> submitted.
+            // Actually, if we want to submit ALL at once, we check if all are 'uploaded' or higher.
+            const allReady = requiredDocs.every(reqDoc => {
+                const f = files[reqDoc.type];
+                return ['uploaded', 'submitted', 'approved'].includes(f.status);
+            });
+            if (allReady && overallDocStatus !== 'approved' && overallDocStatus !== 'rejected') {
+                // Check if actual backend overall status matches
+                overallDocStatus = backendData.documents.status || 'uploaded';
+            }
+        } else {
+            overallDocStatus = 'approved'; // No docs required
+        }
 
         // Fee
         const feeData = backendData.fee || {};
@@ -97,7 +126,7 @@ export const DataProvider = ({ children }) => {
 
         return {
             ...backendData,
-            documents: { status: overallDocStatus, files },
+            documents: { status: backendData.documents.status || 'pending', files }, // Use backend status mainly
             fee,
             hostel,
             lms
@@ -106,11 +135,24 @@ export const DataProvider = ({ children }) => {
 
     const fetchStudentData = useCallback(async () => {
         try {
-            const { data } = await api.get('/student/profile');
-            if (data) {
-                const formatted = formatStudentData(data);
+            // 1. Fetch Student Profile
+            const { data: profile } = await api.get('/student/profile');
+
+            // 2. Fetch Required Documents Settings
+            // We fetch this here to ensure we have the latest definition to build the UI
+            let reqDocs = [];
+            try {
+                const { data: docs } = await api.get('/student/required-documents');
+                reqDocs = docs || [];
+            } catch (err) {
+                console.error("Failed to fetch required documents settings", err);
+                // Fallback (optional) or leave empty
+            }
+
+            if (profile) {
+                const formatted = formatStudentData(profile, reqDocs);
                 setStudentData(formatted);
-                setProgress(data.progressPercentage || 0);
+                setProgress(profile.progressPercentage || 0);
             }
         } catch (error) {
             console.error("Failed to fetch profile", error);
@@ -230,9 +272,9 @@ export const DataProvider = ({ children }) => {
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature
                         });
-                        
+
                         alert("🎉 Payment Successful!\n\nYour tuition fee payment has been processed successfully.\nPayment ID: " + response.razorpay_payment_id);
-                        
+
                         await fetchStudentData();
                     } catch (error) {
                         console.error("Payment verification failed:", error);
@@ -249,22 +291,22 @@ export const DataProvider = ({ children }) => {
                     purpose: "Tuition Fee Payment"
                 },
                 modal: {
-                    ondismiss: function() {
+                    ondismiss: function () {
                         console.log("Payment cancelled by user");
                     }
                 }
             };
 
             const rzp1 = new window.Razorpay(options);
-            
+
             // Handle payment failure
             rzp1.on('payment.failed', function (response) {
                 console.error("Payment failed:", response.error);
-                alert("❌ Payment Failed\n\n" + 
-                      "Reason: " + response.error.description + "\n" +
-                      "Error Code: " + response.error.code);
+                alert("❌ Payment Failed\n\n" +
+                    "Reason: " + response.error.description + "\n" +
+                    "Error Code: " + response.error.code);
             });
-            
+
             rzp1.open();
         } catch (error) {
             console.error("Payment init failed", error);
@@ -359,6 +401,47 @@ export const DataProvider = ({ children }) => {
         console.warn("updateModuleStatus is deprecated. Use specific actions.");
     };
 
+    // Admin settings actions
+    const fetchAdminSettings = async () => {
+        try {
+            const { data } = await api.get('/admin/settings');
+            return data;
+        } catch (error) {
+            console.error('Failed to fetch admin settings', error);
+            return null;
+        }
+    };
+
+    const updateRequiredDocuments = async (documents) => {
+        try {
+            const { data } = await api.put('/admin/settings/documents', { documents });
+            return data;
+        } catch (error) {
+            console.error('Failed to update docs', error);
+            throw error;
+        }
+    };
+
+    const updateHostelRooms = async (rooms) => {
+        try {
+            const { data } = await api.put('/admin/settings/hostel-rooms', { rooms });
+            return data;
+        } catch (error) {
+            console.error('Failed to update hostel rooms', error);
+            throw error;
+        }
+    };
+
+    const fetchHostelAvailability = async () => {
+        try {
+            const { data } = await api.get('/student/hostel-availability');
+            return data;
+        } catch (error) {
+            console.error('Failed to fetch hostel availability', error);
+            return [];
+        }
+    };
+
     const updateStudentStatus = async (studentId, moduleName, status, reason = null, fileKey = null) => {
         if (moduleName === 'documents' && fileKey) {
             const student = allStudents.find(s => s.id === studentId);
@@ -402,7 +485,21 @@ export const DataProvider = ({ children }) => {
             updateStudentStatus,
             fetchHostelApplications,
             approveRejectHostel,
-            fetchAllPayments
+            fetchAllPayments,
+            fetchAdminSettings,
+            updateRequiredDocuments,
+            updateHostelRooms,
+            fetchHostelAvailability,
+            deleteStudent: async (id) => {
+                try {
+                    await api.delete(`/admin/students/${id}`);
+                    await fetchAllStudents();
+                    return true;
+                } catch (error) {
+                    console.error("Failed to delete student", error);
+                    return false;
+                }
+            }
         }}>
             {children}
         </DataContext.Provider>

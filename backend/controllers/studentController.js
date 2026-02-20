@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const StudentProfile = require('../models/StudentProfile');
+const AdminSettings = require('../models/AdminSettings');
 const Subject = require('../models/Subject');
 const fs = require('fs');
 const path = require('path');
@@ -263,6 +264,30 @@ const getRegisteredSubjects = asyncHandler(async (req, res) => {
     res.json(profile.registeredSubjects || []);
 });
 
+// @desc    Get required documents list
+// @route   GET /api/student/required-documents
+// @access  Private (Student)
+const getRequiredDocuments = asyncHandler(async (req, res) => {
+    const settings = await AdminSettings.findOne();
+    res.json(settings ? settings.requiredDocuments : []);
+});
+
+// @desc    Get hostel availability
+// @route   GET /api/student/hostel-availability
+// @access  Private (Student)
+const getHostelAvailability = asyncHandler(async (req, res) => {
+    const settings = await AdminSettings.findOne();
+    if (!settings) {
+        return res.json([]);
+    }
+    const availability = settings.hostelRooms.map(r => ({
+        gender: r.gender,
+        roomType: r.roomType,
+        available: r.available
+    }));
+    res.json(availability);
+});
+
 module.exports = {
     getProfile,
     uploadDocument,
@@ -272,5 +297,7 @@ module.exports = {
     activateLMS,
     getSubjects,
     registerSubject,
-    getRegisteredSubjects
+    getRegisteredSubjects,
+    getRequiredDocuments,
+    getHostelAvailability
 };
