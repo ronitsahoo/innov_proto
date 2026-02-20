@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button } from '../components/UI';
-import { TrendingUp, Download, MessageSquare, BarChart2, Activity, Clock } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { Card, Button, Badge } from '../components/UI';
+import { TrendingUp, Download, MessageSquare, BarChart2, Activity, Clock, Users, DollarSign, FileText, CheckCircle, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function AdminDashboard() {
